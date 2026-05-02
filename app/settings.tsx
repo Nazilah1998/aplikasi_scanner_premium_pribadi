@@ -1,16 +1,31 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
-import { Check, Monitor, Moon, Sun, ChevronRight } from "lucide-react-native";
+import {
+  Check,
+  Monitor,
+  Moon,
+  Sun,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { useAppTheme, ThemeMode } from "@/src/shared/contexts/ThemeContext";
 import { AppColors } from "@/src/shared/constants/theme";
+import { useAppUpdate } from "@/src/shared/hooks/useAppUpdate";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { themeMode, setThemeMode, activeColorScheme } = useAppTheme();
+  const { status, checkForUpdate } = useAppUpdate();
 
   const isDark = activeColorScheme === "dark";
   const bgColor = isDark ? "#05070a" : "#f8fafc";
@@ -85,6 +100,40 @@ export default function SettingsScreen() {
         </ThemedText>
 
         <ThemedText style={[styles.sectionTitle, { marginTop: 24 }]}>
+          Pembaruan
+        </ThemedText>
+        <View
+          style={[styles.card, { backgroundColor: cardBgColor, borderColor }]}
+        >
+          <TouchableOpacity
+            style={styles.optionRow}
+            onPress={checkForUpdate}
+            disabled={status === "checking" || status === "downloading"}
+          >
+            <View style={styles.optionLeft}>
+              <RefreshCw
+                color={isDark ? "#94a3b8" : "#64748b"}
+                size={22}
+              />
+              <View>
+                <ThemedText style={styles.optionLabel}>Cek Pembaruan</ThemedText>
+                {status === "checking" && (
+                  <ThemedText style={styles.subLabel}>Mengecek...</ThemedText>
+                )}
+                {status === "idle" && (
+                  <ThemedText style={styles.subLabel}>Versi 1.0.0 (Terbaru)</ThemedText>
+                )}
+              </View>
+            </View>
+            {status === "checking" ? (
+              <ActivityIndicator size="small" color={AppColors.primary} />
+            ) : (
+              <ChevronRight color={isDark ? "#94a3b8" : "#94a3b8"} size={18} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <ThemedText style={[styles.sectionTitle, { marginTop: 24 }]}>
           Lainnya
         </ThemedText>
         <View
@@ -153,6 +202,11 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 16,
     fontWeight: "500",
+  },
+  subLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
   },
   hint: {
     fontSize: 13,

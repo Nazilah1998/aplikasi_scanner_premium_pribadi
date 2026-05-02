@@ -14,14 +14,21 @@ export const useAppUpdate = () => {
   const [updateMessage, setUpdateMessage] = useState("");
 
   useEffect(() => {
-    // Jangan jalankan saat development
+    // Jangan jalankan otomatis saat development
     if (__DEV__) return;
     checkForUpdate();
   }, []);
 
-  const checkForUpdate = async () => {
+  const checkForUpdate = async (isManual = false) => {
     try {
       setStatus("checking");
+      
+      // Di mode development, skip pengecekan asli expo
+      if (__DEV__ && !isManual) {
+        setStatus("idle");
+        return;
+      }
+
       const result = await Updates.checkForUpdateAsync();
 
       if (result.isAvailable) {
@@ -56,5 +63,11 @@ export const useAppUpdate = () => {
     setUpdateMessage("");
   };
 
-  return { status, updateMessage, downloadAndRestart, dismiss };
+  return { 
+    status, 
+    updateMessage, 
+    checkForUpdate: () => checkForUpdate(true), 
+    downloadAndRestart, 
+    dismiss 
+  };
 };
