@@ -149,8 +149,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    gap: 25,
+    gap: 15, // Reduced gap for better snapping
   },
   modeTab: {
     alignItems: "center",

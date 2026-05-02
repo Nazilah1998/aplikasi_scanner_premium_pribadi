@@ -5,9 +5,11 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Share,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import {
   Check,
   Monitor,
@@ -15,7 +17,11 @@ import {
   Sun,
   ChevronRight,
   RefreshCw,
+  HelpCircle,
+  MessageSquare,
+  Share2,
 } from "lucide-react-native";
+import * as Updates from "expo-updates";
 
 import { ThemedText } from "@/components/themed-text";
 import { useAppTheme, ThemeMode } from "@/src/shared/contexts/ThemeContext";
@@ -23,6 +29,7 @@ import { AppColors } from "@/src/shared/constants/theme";
 import { useAppUpdate } from "@/src/shared/hooks/useAppUpdate";
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { themeMode, setThemeMode, activeColorScheme } = useAppTheme();
   const { status, checkForUpdate } = useAppUpdate();
@@ -121,7 +128,8 @@ export default function SettingsScreen() {
                 )}
                 {status === "idle" && (
                   <ThemedText style={styles.subLabel}>
-                    Versi 1.0.0 (Terbaru)
+                    ID: {Updates.updateId?.substring(0, 8) || "N/A"} | Channel:{" "}
+                    {Updates.channel || "N/A"}
                   </ThemedText>
                 )}
               </View>
@@ -131,6 +139,67 @@ export default function SettingsScreen() {
             ) : (
               <ChevronRight color={isDark ? "#94a3b8" : "#94a3b8"} size={18} />
             )}
+          </TouchableOpacity>
+        </View>
+
+        <ThemedText style={[styles.sectionTitle, { marginTop: 24 }]}>
+          Dukungan & Masukan
+        </ThemedText>
+        <View
+          style={[styles.card, { backgroundColor: cardBgColor, borderColor }]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.optionRow,
+              { borderBottomWidth: 1, borderBottomColor: borderColor },
+            ]}
+            onPress={() =>
+              Alert.alert("Bantuan", "Pusat bantuan akan segera hadir.")
+            }
+          >
+            <View style={styles.optionLeft}>
+              <HelpCircle color={isDark ? "#94a3b8" : "#64748b"} size={22} />
+              <ThemedText style={styles.optionLabel}>
+                Pusat Bantuan & FAQ
+              </ThemedText>
+            </View>
+            <ChevronRight color={isDark ? "#94a3b8" : "#94a3b8"} size={18} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionRow,
+              { borderBottomWidth: 1, borderBottomColor: borderColor },
+            ]}
+            onPress={() => router.push("/support")}
+          >
+            <View style={styles.optionLeft}>
+              <MessageSquare color={isDark ? "#94a3b8" : "#64748b"} size={22} />
+              <ThemedText style={styles.optionLabel}>Kritik & Saran</ThemedText>
+            </View>
+            <ChevronRight color={isDark ? "#94a3b8" : "#94a3b8"} size={18} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.optionRow}
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message:
+                    "Hai! Aku pakai AiTyScanner untuk scan dokumen jadi PDF dengan sangat mudah. Download di sini: https://example.com/download",
+                });
+              } catch (error) {
+                console.error(error);
+              }
+            }}
+          >
+            <View style={styles.optionLeft}>
+              <Share2 color={isDark ? "#94a3b8" : "#64748b"} size={22} />
+              <ThemedText style={styles.optionLabel}>
+                Rekomendasikan ke Teman
+              </ThemedText>
+            </View>
+            <ChevronRight color={isDark ? "#94a3b8" : "#94a3b8"} size={18} />
           </TouchableOpacity>
         </View>
 

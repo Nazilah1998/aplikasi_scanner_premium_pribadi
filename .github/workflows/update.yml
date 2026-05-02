@@ -31,8 +31,5 @@ jobs:
 
       - name: 🚀 Kirim update ke HP (OTA)
         run: |
-          eas update \
-            --branch preview \
-            --platform android \
-            --message "🤖 Auto update dari commit: ${{ github.event.head_commit.message }}" \
-            --non-interactive
+          npx eas-cli update --branch preview --platform android --message "🤖 Auto update: ${{ github.event.head_commit.message }}" --non-interactive
+          npx eas-cli update --branch main --platform android --message "🤖 Auto update: ${{ github.event.head_commit.message }}" --non-interactive

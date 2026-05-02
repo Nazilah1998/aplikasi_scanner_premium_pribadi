@@ -196,9 +196,11 @@ export default function ScanScreen() {
       const layout = tabLayouts[modeId];
       if (layout && scrollRef.current) {
         const screenWidth = Dimensions.get("window").width;
+        // Hitung agar titik tengah item (layout.x + layout.width/2)
+        // berada tepat di tengah layar (screenWidth/2)
         const scrollToX = layout.x - screenWidth / 2 + layout.width / 2;
         scrollRef.current.scrollTo({
-          x: Math.max(0, scrollToX),
+          x: scrollToX,
           animated: true,
         });
       }
@@ -682,7 +684,14 @@ export default function ScanScreen() {
             ref={scrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.modeTabs}
+            contentContainerStyle={[
+              styles.modeTabs,
+              {
+                paddingHorizontal: Dimensions.get("window").width / 2 - 40,
+              },
+            ]}
+            snapToInterval={80} // Perkiraan rata-rata lebar item
+            decelerationRate="fast"
           >
             {SCAN_MODES.map((m) => (
               <TouchableOpacity

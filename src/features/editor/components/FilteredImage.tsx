@@ -29,7 +29,8 @@ export const FilteredImage: React.FC<FilteredImageProps> = ({
         : contentFit;
 
   const matrix = getFilterMatrix(filterId, intensity);
-  const isOriginal = filterId === "Original" || filterId === "Tidak Ada" || !filterId;
+  const isOriginal =
+    filterId === "Original" || filterId === "Tidak Ada" || !filterId;
 
   const imageComponent = (
     <Image
@@ -45,9 +46,7 @@ export const FilteredImage: React.FC<FilteredImageProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      <ColorMatrix matrix={matrix as any}>
-        {imageComponent}
-      </ColorMatrix>
+      <ColorMatrix matrix={matrix as any}>{imageComponent}</ColorMatrix>
     </View>
   );
 };
