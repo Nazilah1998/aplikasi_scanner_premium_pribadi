@@ -10,21 +10,25 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react-native";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  SafeAreaView,
   TouchableOpacity,
   View,
   StatusBar,
   Alert,
+  ScrollView,
 } from "react-native";
-import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { AppColors } from "@/src/shared/constants/theme";
 import { useEditor } from "@/src/features/editor/hooks/useEditor";
-import { CropOverlay } from "@/src/features/editor/components/CropOverlay";
+import {
+  CropOverlay,
+  CropOverlayRef,
+} from "@/src/features/editor/components/CropOverlay";
 import { FilterGallery } from "@/src/features/editor/components/FilterGallery";
+import { FilteredImage } from "@/src/features/editor/components/FilteredImage";
 import { TextEditorModal } from "@/src/features/editor/components/TextEditorModal";
 import { SmartEraseInterface } from "@/src/features/editor/components/SmartEraseInterface";
 import { EraseOverlay } from "@/src/features/editor/components/EraseOverlay";
@@ -37,7 +41,7 @@ const FILTERS = [
   { name: "Original", id: "Original" },
   { name: "Cerahkan", id: "Cerahkan" },
   { name: "Warna Ajaib", id: "Warna Ajaib" },
-  { name: "Ajaib Pro", id: "Ajaib Pro", badge: "Free Offer" },
+  { name: "Ajaib Pro", id: "Ajaib Pro" },
   { name: "Tidak Ada...", id: "Tidak Ada" },
   { name: "Tanpa Bay...", id: "Tanpa Bayangan" },
   { name: "H&P", id: "H&P" },
@@ -50,10 +54,38 @@ export default function EditorScreen() {
   const { docId, pageId } = useLocalSearchParams();
   const router = useRouter();
   const e = useEditor(docId as string, pageId as string);
+  const cropOverlayRef = React.useRef<CropOverlayRef>(null);
+  const initialFilterRef = React.useRef("Original");
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  // Calculate dynamic dimensions for imageCard so it perfectly wraps the image
+  let cardWidth = containerSize.width ? containerSize.width - 40 : 0;
+  let cardHeight = containerSize.height ? containerSize.height - 40 : 0;
+  if (containerSize.width > 0 && containerSize.height > 0) {
+    const availableWidth = containerSize.width - 40;
+    const availableHeight = containerSize.height - 40;
+    const containerRatio = availableWidth / availableHeight;
+
+    if (e.imageRatio > containerRatio) {
+      // Image is wider than container
+      cardWidth = availableWidth;
+      cardHeight = availableWidth / e.imageRatio;
+    } else {
+      // Image is taller than container
+      cardHeight = availableHeight;
+      cardWidth = availableHeight * e.imageRatio;
+    }
+  }
+
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <Stack.Screen
         options={{
           headerShown: true,
@@ -81,22 +113,30 @@ export default function EditorScreen() {
         }}
       />
 
-      <View style={styles.mainContent}>
-        <View style={styles.imageCard}>
+      <View
+        style={styles.mainContent}
+        onLayout={(evt) => {
+          const { width, height } = evt.nativeEvent.layout;
+          setContainerSize({ width, height });
+        }}
+      >
+        <View
+          style={[
+            styles.imageCard,
+            { width: cardWidth || "100%", height: cardHeight || "80%" },
+          ]}
+        >
           {e.imageUri && (
-            <Image
-              source={{ uri: e.imageUri as string }}
+            <FilteredImage
+              uri={e.imageUri}
+              filterId={e.activeFilter}
+              intensity={e.filterIntensity}
               style={styles.mainImage}
               contentFit="contain"
-              cachePolicy="none"
             />
           )}
           {e.activeSubTool === "crop" && (
-            <CropOverlay
-              panHandlers={e.panResponder.panHandlers}
-              cropPos={e.cropPos}
-              cropSize={e.cropSize}
-            />
+            <CropOverlay ref={cropOverlayRef} imageUri={e.imageUri} />
           )}
           {e.activeSubTool === "erase" && <EraseOverlay mode={e.eraseMode} />}
           {e.activeOverlay === "sign" && <SignOverlay />}
@@ -197,8 +237,10 @@ export default function EditorScreen() {
               isScanningText={e.isScanningText}
               onAction={(action) => {
                 if (action === "crop") e.setActiveSubTool("crop");
-                else if (action === "filter") e.setActiveSubTool("filter");
-                else if (action === "ocr") e.handleOcr();
+                else if (action === "filter") {
+                  initialFilterRef.current = e.activeFilter;
+                  e.setActiveSubTool("filter");
+                } else if (action === "ocr") e.handleOcr();
                 else if (action === "erase") e.setActiveSubTool("erase");
                 else if (action === "sign") e.handleSign();
                 else if (action === "addText") e.handleAddText();
@@ -206,7 +248,15 @@ export default function EditorScreen() {
                 else if (action === "watermark") e.handleWatermark();
                 else if (action === "reorder") e.handleReorder();
                 else if (action === "pageTitle") e.handlePageTitle();
-                else Alert.alert("Fitur", `${action} akan segera hadir.`);
+                else if (action === "retake") {
+                  router.push({
+                    pathname: "/scan",
+                    params: {
+                      retakeDocId: e.doc?.id,
+                      retakePageId: e.doc?.pages[e.currentPageIndex]?.id,
+                    },
+                  });
+                } else Alert.alert("Fitur", `${action} akan segera hadir.`);
               }}
             />
           )}
@@ -255,16 +305,20 @@ export default function EditorScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.cropToolBtn}
-                  onPress={() =>
-                    Alert.alert("Auto", "Mendeteksi tepi otomatis...")
-                  }
+                  onPress={() => {
+                    Alert.alert(
+                      "Auto",
+                      "Fitur deteksi tepi dokumen otomatis akan segera hadir. Beralih ke Bebas sementara.",
+                    );
+                    cropOverlayRef.current?.setRatio("Bebas");
+                  }}
                 >
                   <Maximize color="white" size={20} />
                   <ThemedText style={styles.cropToolLabel}>Otomatis</ThemedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.cropToolBtn}
-                  onPress={() => e.cropSize.setValue({ x: 300, y: 400 })}
+                  onPress={() => cropOverlayRef.current?.setAll()}
                 >
                   <Maximize color="white" size={20} />
                   <ThemedText style={styles.cropToolLabel}>Semua</ThemedText>
@@ -272,30 +326,31 @@ export default function EditorScreen() {
               </View>
               <View style={styles.ratioBar}>
                 <ThemedText style={styles.subToolLabel}>Rasio:</ThemedText>
-                <TouchableOpacity
-                  style={styles.subToolBtn}
-                  onPress={() => e.cropSize.setValue({ x: 250, y: 350 })}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingRight: 20 }}
                 >
-                  <ThemedText style={styles.subToolText}>Bebas</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.subToolBtn}
-                  onPress={() => e.cropSize.setValue({ x: 250, y: 250 })}
-                >
-                  <ThemedText style={styles.subToolText}>1:1</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.subToolBtn}
-                  onPress={() => e.cropSize.setValue({ x: 225, y: 300 })}
-                >
-                  <ThemedText style={styles.subToolText}>3:4</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.subToolBtn}
-                  onPress={() => e.cropSize.setValue({ x: 225, y: 400 })}
-                >
-                  <ThemedText style={styles.subToolText}>16:9</ThemedText>
-                </TouchableOpacity>
+                  {[
+                    "Bebas",
+                    "1:1",
+                    "3:4",
+                    "4:3",
+                    "9:16",
+                    "16:9",
+                    "2:3",
+                    "3:2",
+                    "A4",
+                  ].map((r) => (
+                    <TouchableOpacity
+                      key={r}
+                      style={styles.subToolBtn}
+                      onPress={() => cropOverlayRef.current?.setRatio(r)}
+                    >
+                      <ThemedText style={styles.subToolText}>{r}</ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
               <View style={styles.confirmRow}>
                 <TouchableOpacity
@@ -307,7 +362,11 @@ export default function EditorScreen() {
                 <ThemedText style={styles.confirmTitle}>Potong</ThemedText>
                 <TouchableOpacity
                   style={styles.confirmAction}
-                  onPress={e.applyFinalCrop}
+                  onPress={() => {
+                    const points =
+                      cropOverlayRef.current?.getNormalizedPoints();
+                    e.applyFinalCrop(points);
+                  }}
                 >
                   <Check color="white" size={24} />
                 </TouchableOpacity>
@@ -318,11 +377,24 @@ export default function EditorScreen() {
             <FilterGallery
               filters={FILTERS}
               activeFilter={e.activeFilter}
+              intensity={e.filterIntensity}
               originalUri={e.originalUri}
               applyToAll={e.applyToAll}
-              onSelectFilter={e.applyFilter}
+              onSelectFilter={(id) => {
+                e.applyFilter(id, e.filterIntensity);
+              }}
+              onIntensityChange={(val) => {
+                e.setFilterIntensity(val);
+                e.applyFilter(e.activeFilter, val);
+              }}
               onToggleApplyAll={() => e.setApplyToAll(!e.applyToAll)}
-              onCancel={() => e.setActiveSubTool(null)}
+              onCancel={() => {
+                if (e.activeFilter !== initialFilterRef.current) {
+                  e.applyFilter(initialFilterRef.current, 100);
+                  e.setFilterIntensity(100);
+                }
+                e.setActiveSubTool(null);
+              }}
               onConfirm={() => e.setActiveSubTool(null)}
             />
           )}
@@ -372,6 +444,6 @@ export default function EditorScreen() {
           }}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

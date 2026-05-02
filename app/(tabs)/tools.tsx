@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   Dimensions,
   StatusBar,
+  Alert,
 } from "react-native";
+import { useRouter } from "expo-router";
+import { useDashboard } from "@/src/features/dashboard/hooks/useDashboard";
 import {
   Search,
   Sparkles,
@@ -149,6 +152,88 @@ const TOOL_SECTIONS = [
 
 export default function ToolsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const d = useDashboard();
+
+  const handleToolPress = (toolId: string) => {
+    switch (toolId) {
+      case "import_img":
+        d.handleImportImage();
+        break;
+      case "import_file":
+        d.handleImportFile();
+        break;
+      case "id":
+        router.push("/scan?mode=KARTU_ID");
+        break;
+      case "ocr":
+        router.push("/scan?mode=TEKS");
+        break;
+      case "passport":
+        router.push("/scan?mode=PAS_FOTO");
+        break;
+      case "math":
+        router.push("/scan?mode=MATH");
+        break;
+      case "translate":
+        router.push("/scan?mode=TRANSLATE");
+        break;
+      case "book":
+        router.push("/scan?mode=BUKU");
+        break;
+      case "slide":
+        router.push("/scan?mode=SLIDE");
+        break;
+      case "whiteboard":
+        router.push("/scan?mode=WHITEBOARD");
+        break;
+      case "qr":
+        router.push("/scan?mode=QR");
+        break;
+      case "count":
+        router.push("/scan?mode=COUNTCAM");
+        break;
+      case "word":
+      case "excel":
+      case "ppt":
+      case "pdf_img":
+      case "pdf_long":
+        Alert.alert(
+          "Fitur Cloud Premium",
+          "Untuk mengkonversi ke format Word/Excel/PPT dengan akurasi tinggi, fitur ini membutuhkan koneksi ke server pemrosesan AiTy. Saat ini sedang dalam tahap akhir optimasi server.",
+        );
+        break;
+      case "sign":
+      case "watermark":
+      case "erase":
+      case "merge":
+      case "split":
+      case "reorder":
+      case "compress":
+      case "lock":
+        Alert.alert(
+          "Pilih Dokumen",
+          "Silakan pilih dokumen dari tab 'File' terlebih dahulu, lalu pilih opsi Edit untuk menerapkan alat ini.",
+          [
+            { text: "Batal", style: "cancel" },
+            { text: "Buka File", onPress: () => router.push("/files") },
+          ],
+        );
+        break;
+      case "print":
+        Alert.alert(
+          "Cetak Dokumen",
+          "Pilih dokumen dari daftar File yang ingin Anda cetak.",
+          [
+            { text: "Batal", style: "cancel" },
+            { text: "Pilih File", onPress: () => router.push("/files") },
+          ],
+        );
+        break;
+      default:
+        Alert.alert("Info", "Alat cerdas ini sedang dipersiapkan untuk Anda.");
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -198,7 +283,11 @@ export default function ToolsScreen() {
             <ThemedText style={styles.sectionTitle}>{section.title}</ThemedText>
             <View style={styles.toolsGrid}>
               {section.items.map((tool) => (
-                <TouchableOpacity key={tool.id} style={styles.toolCard}>
+                <TouchableOpacity
+                  key={tool.id}
+                  style={styles.toolCard}
+                  onPress={() => handleToolPress(tool.id)}
+                >
                   <View
                     style={[
                       styles.iconContainer,

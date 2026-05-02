@@ -16,6 +16,32 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.2)",
     justifyContent: "space-between",
   },
+  topControlWrapper: {
+    backgroundColor: "black",
+  },
+  cameraOverlay: {
+    flex: 1,
+    justifyContent: "space-between",
+    backgroundColor: "transparent",
+  },
+  hdBadgeHeader: {
+    borderWidth: 1.5,
+    borderColor: "white",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  hdBadgeHeaderActive: {
+    borderColor: "#10b981",
+  },
+  hdBadgeHeaderText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  hdBadgeHeaderTextActive: {
+    color: "#10b981",
+  },
   center: {
     flex: 1,
     justifyContent: "center",
@@ -27,7 +53,7 @@ export const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 5,
   },
   headerRight: {
     flexDirection: "row",
@@ -112,7 +138,7 @@ export const styles = StyleSheet.create({
     color: "white",
   },
   footer: {
-    paddingBottom: 30,
+    paddingBottom: 15,
     backgroundColor: "rgba(0,0,0,0.8)",
   },
   modeTabsWrapper: {
@@ -122,7 +148,7 @@ export const styles = StyleSheet.create({
   modeTabs: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 15,
+    paddingVertical: 10,
     paddingHorizontal: 20,
     gap: 25,
   },
@@ -152,7 +178,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingTop: 25,
+    paddingTop: 10,
     paddingHorizontal: 10,
   },
   controlItem: {

@@ -1,8 +1,10 @@
 import { useCameraPermissions, CameraView } from "expo-camera";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import {
   X,
   Zap,
+  ZapOff,
   ImageIcon,
   LayoutGrid,
   MoreVertical,
@@ -27,14 +29,13 @@ import {
   ChevronRight,
   Undo2,
 } from "lucide-react-native";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   StatusBar,
-  SafeAreaView,
   ScrollView,
   Switch,
   Dimensions,
@@ -50,6 +51,7 @@ import Animated, {
   withTiming,
   withSequence,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { AppColors } from "@/src/shared/constants/theme";
@@ -146,8 +148,12 @@ const ALL_FEATURES_DATA = [
 ];
 
 export default function ScanScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { mode } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const mode = params.mode;
+  const retakeDocId = params.retakeDocId;
+  const retakePageId = params.retakePageId;
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
@@ -179,6 +185,32 @@ export default function ScanScreen() {
   const gridOpacity = useSharedValue(0.5);
   const boxWidth = useSharedValue(Dimensions.get("window").width * 0.82);
   const boxHeight = useSharedValue(Dimensions.get("window").height * 0.45);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const [tabLayouts, setTabLayouts] = useState<
+    Record<string, { x: number; width: number }>
+  >({});
+
+  const scrollToMode = useCallback(
+    (modeId: string) => {
+      const layout = tabLayouts[modeId];
+      if (layout && scrollRef.current) {
+        const screenWidth = Dimensions.get("window").width;
+        const scrollToX = layout.x - screenWidth / 2 + layout.width / 2;
+        scrollRef.current.scrollTo({
+          x: Math.max(0, scrollToX),
+          animated: true,
+        });
+      }
+    },
+    [tabLayouts],
+  );
+
+  useEffect(() => {
+    if (Object.keys(tabLayouts).length === SCAN_MODES.length) {
+      scrollToMode(activeMode);
+    }
+  }, [activeMode, tabLayouts, scrollToMode]);
 
   useEffect(() => {
     if (
@@ -235,26 +267,58 @@ export default function ScanScreen() {
     height: boxHeight.value,
   }));
 
-  if (!permission) return <View style={styles.center} />;
-  if (!permission.granted) {
-    return (
-      <View style={styles.center}>
-        <ThemedText style={{ color: "white", marginBottom: 20 }}>
-          Izin kamera diperlukan
-        </ThemedText>
-        <TouchableOpacity
-          onPress={requestPermission}
-          style={styles.permissionBtn}
-        >
-          <ThemedText style={{ color: "white", fontWeight: "bold" }}>
-            Beri Izin
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const finishScanWithImage = useCallback(
+    async (imageUri: string) => {
+      try {
+        if (retakeDocId && retakePageId) {
+          // Update existing page
+          const documents = await documentService.getAllDocuments();
+          const doc = documents.find((d) => d.id === retakeDocId);
+          if (doc) {
+            const pageIndex = doc.pages.findIndex((p) => p.id === retakePageId);
+            if (pageIndex !== -1) {
+              doc.pages[pageIndex].imagePath = imageUri;
+              doc.updatedAt = new Date().toISOString();
+              await documentService.saveDocument(doc);
+              router.replace({
+                pathname: "/editor",
+                params: {
+                  docId: retakeDocId as string,
+                  pageId: retakePageId as string,
+                },
+              });
+              return;
+            }
+          }
+        }
 
-  const takePicture = async () => {
+        const docId = `doc_${Date.now()}`;
+        const pages: DocumentPage[] = [
+          {
+            id: `page_${docId}_0`,
+            imagePath: imageUri,
+            filter: "none",
+            brightness: 1,
+            contrast: 1,
+          },
+        ];
+        const newDoc = {
+          id: docId,
+          name: `Scan ${new Date().toLocaleDateString("id-ID")}`,
+          pages,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await documentService.saveDocument(newDoc);
+        router.replace({ pathname: "/document/[id]", params: { id: docId } });
+      } catch {
+        Alert.alert("Error", "Gagal menyimpan dokumen");
+      }
+    },
+    [router, retakeDocId, retakePageId],
+  );
+
+  const takePicture = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
     setIsProcessing(true);
 
@@ -299,35 +363,51 @@ export default function ScanScreen() {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [cameraRef, isProcessing, resolution, isBatch, finishScanWithImage]);
 
-  const finishScanWithImage = async (imageUri: string) => {
+  const pickImage = useCallback(async () => {
     try {
-      const docId = `doc_${Date.now()}`;
-      const pages: DocumentPage[] = [
-        {
-          id: `page_${docId}_0`,
-          imagePath: imageUri,
-          filter: "none",
-          brightness: 1,
-          contrast: 1,
-        },
-      ];
-      const newDoc = {
-        id: docId,
-        name: `Scan ${new Date().toLocaleDateString("id-ID")}`,
-        pages,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await documentService.saveDocument(newDoc);
-      router.replace({ pathname: "/document/[id]", params: { id: docId } });
-    } catch {
-      Alert.alert("Error", "Gagal menyimpan dokumen");
-    }
-  };
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: isBatch,
+        quality: 1,
+      });
 
-  const finishScan = async () => {
+      if (!result.canceled) {
+        const selectedUris = result.assets.map((asset) => asset.uri);
+        const permanentUris: string[] = [];
+
+        for (const uri of selectedUris) {
+          const fileName = `import_${Date.now()}_${Math.floor(
+            Math.random() * 1000,
+          )}.jpg`;
+          const fs = FileSystem as any;
+          const baseDir = fs.documentDirectory || fs.cacheDirectory;
+          const permanentUri = baseDir?.endsWith("/")
+            ? `${baseDir}${fileName}`
+            : `${baseDir}/${fileName}`;
+
+          await FileSystem.copyAsync({
+            from: uri,
+            to: permanentUri,
+          });
+          permanentUris.push(permanentUri);
+        }
+
+        if (isBatch) {
+          setCapturedImages((prev) => [...prev, ...permanentUris]);
+        } else {
+          // If single mode, take the first one and finish
+          finishScanWithImage(permanentUris[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Pick image error:", error);
+      Alert.alert("Error", "Gagal mengimpor gambar");
+    }
+  }, [isBatch, finishScanWithImage]);
+
+  const finishScan = useCallback(async () => {
     if (capturedImages.length === 0) return;
     setIsProcessing(true);
     try {
@@ -353,11 +433,181 @@ export default function ScanScreen() {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [capturedImages, router]);
+
+  // Early returns must come AFTER all hooks
+  if (!permission) return <View style={styles.center} />;
+  if (!permission.granted) {
+    return (
+      <View style={styles.center}>
+        <ThemedText style={{ color: "white", marginBottom: 20 }}>
+          Izin kamera diperlukan
+        </ThemedText>
+        <TouchableOpacity
+          onPress={requestPermission}
+          style={styles.permissionBtn}
+        >
+          <ThemedText style={{ color: "white", fontWeight: "bold" }}>
+            Beri Izin
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
+      <View style={[styles.topControlWrapper, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.iconBtn}
+          >
+            <X color="white" size={26} />
+          </TouchableOpacity>
+          {retakeDocId && (
+            <View style={{ marginLeft: 10 }}>
+              <ThemedText
+                style={{ color: "#10b981", fontWeight: "bold", fontSize: 16 }}
+              >
+                Ambil Ulang
+              </ThemedText>
+            </View>
+          )}
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => {
+                setShowFlashMenu(!showFlashMenu);
+                setShowHDMenu(false);
+                setShowSettingsModal(false);
+              }}
+            >
+              {flash === "off" && !enableTorch ? (
+                <ZapOff color="white" size={22} />
+              ) : (
+                <Zap
+                  color={flash !== "off" || enableTorch ? "#fbbf24" : "white"}
+                  size={22}
+                />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => {
+                setShowHDMenu(!showHDMenu);
+                setShowFlashMenu(false);
+                setShowSettingsModal(false);
+              }}
+            >
+              <View
+                style={[
+                  styles.hdBadgeHeader,
+                  isHD && styles.hdBadgeHeaderActive,
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.hdBadgeHeaderText,
+                    isHD && styles.hdBadgeHeaderTextActive,
+                  ]}
+                >
+                  HD
+                </ThemedText>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => {
+                setShowSettingsModal(true);
+                setShowFlashMenu(false);
+                setShowHDMenu(false);
+              }}
+            >
+              <MoreVertical color="white" size={22} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {showFlashMenu && (
+          <View style={styles.flashMenu}>
+            {[
+              { id: "on", name: "Aktif", isTorch: false },
+              { id: "off", name: "Nonaktif", isTorch: false },
+              { id: "auto", name: "Otomatis", isTorch: false },
+              { id: "off", name: "Tetap Aktif", isTorch: true },
+            ].map((opt) => {
+              const isActive = opt.isTorch
+                ? enableTorch
+                : flash === opt.id && !enableTorch;
+              return (
+                <TouchableOpacity
+                  key={opt.name}
+                  style={[
+                    styles.flashOption,
+                    isActive && styles.activeFlashOption,
+                  ]}
+                  onPress={() => {
+                    setFlash(opt.id as any);
+                    setEnableTorch(opt.isTorch);
+                    setShowFlashMenu(false);
+                  }}
+                >
+                  <ThemedText
+                    style={[
+                      styles.flashOptionText,
+                      isActive && styles.activeFlashText,
+                    ]}
+                  >
+                    {opt.name}
+                  </ThemedText>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {showHDMenu && (
+          <View style={styles.hdMenu}>
+            {[
+              { id: "12M", res: "4624x2600" },
+              { id: "8M", res: "3840x2160" },
+              { id: "6M", res: "2880x2160" },
+              { id: "5M", res: "2560x1920" },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.id}
+                style={[
+                  styles.hdOption,
+                  resolution === opt.id && styles.activeHdOption,
+                ]}
+                onPress={() => {
+                  setResolution(opt.id);
+                  setIsHD(true);
+                  setShowHDMenu(false);
+                }}
+              >
+                <ThemedText
+                  style={[
+                    styles.hdLabel,
+                    resolution === opt.id && styles.activeHdText,
+                  ]}
+                >
+                  {opt.id}
+                </ThemedText>
+                <ThemedText style={styles.hdSubLabel}>({opt.res})</ThemedText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
       <CameraView
         ref={cameraRef}
         style={styles.camera}
@@ -365,131 +615,7 @@ export default function ScanScreen() {
         flash={flash}
         enableTorch={enableTorch}
       >
-        <SafeAreaView style={styles.overlay}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.iconBtn}
-            >
-              <X color="white" size={26} />
-            </TouchableOpacity>
-            <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  setShowFlashMenu(!showFlashMenu);
-                  setShowHDMenu(false);
-                  setShowSettingsModal(false);
-                }}
-              >
-                <Zap
-                  color={flash !== "off" || enableTorch ? "#fbbf24" : "white"}
-                  size={22}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  setShowHDMenu(!showHDMenu);
-                  setShowFlashMenu(false);
-                  setShowSettingsModal(false);
-                }}
-              >
-                <ThemedText
-                  style={{
-                    color: isHD ? "#10b981" : "white",
-                    fontWeight: "bold",
-                    fontSize: 12,
-                  }}
-                >
-                  HD
-                </ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  setShowSettingsModal(true);
-                  setShowFlashMenu(false);
-                  setShowHDMenu(false);
-                }}
-              >
-                <MoreVertical color="white" size={22} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {showFlashMenu && (
-            <View style={styles.flashMenu}>
-              {[
-                { id: "on", name: "Aktif", isTorch: false },
-                { id: "off", name: "Nonaktif", isTorch: false },
-                { id: "auto", name: "Otomatis", isTorch: false },
-                { id: "off", name: "Tetap Aktif", isTorch: true },
-              ].map((opt) => {
-                const isActive = opt.isTorch
-                  ? enableTorch
-                  : flash === opt.id && !enableTorch;
-                return (
-                  <TouchableOpacity
-                    key={opt.name}
-                    style={[
-                      styles.flashOption,
-                      isActive && styles.activeFlashOption,
-                    ]}
-                    onPress={() => {
-                      setFlash(opt.id as any);
-                      setEnableTorch(opt.isTorch);
-                      setShowFlashMenu(false);
-                    }}
-                  >
-                    <ThemedText
-                      style={[
-                        styles.flashOptionText,
-                        isActive && styles.activeFlashText,
-                      ]}
-                    >
-                      {opt.name}
-                    </ThemedText>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          {showHDMenu && (
-            <View style={styles.hdMenu}>
-              {[
-                { id: "12M", res: "4624x2600" },
-                { id: "8M", res: "3840x2160" },
-                { id: "6M", res: "2880x2160" },
-                { id: "5M", res: "2560x1920" },
-              ].map((opt) => (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[
-                    styles.hdOption,
-                    resolution === opt.id && styles.activeHdOption,
-                  ]}
-                  onPress={() => {
-                    setResolution(opt.id);
-                    setIsHD(true);
-                    setShowHDMenu(false);
-                  }}
-                >
-                  <ThemedText
-                    style={[
-                      styles.hdLabel,
-                      resolution === opt.id && styles.activeHdText,
-                    ]}
-                  >
-                    {opt.id}
-                  </ThemedText>
-                  <ThemedText style={styles.hdSubLabel}>({opt.res})</ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
+        <View style={styles.cameraOverlay}>
           <View style={styles.gridContainer}>
             <Animated.View style={[styles.gridBox, animatedGridStyle]}>
               <View style={[styles.corner, styles.topLeft]} />
@@ -500,7 +626,7 @@ export default function ScanScreen() {
             </Animated.View>
             <ThemedText style={styles.hintText}>Mencari Dokumen...</ThemedText>
           </View>
-        </SafeAreaView>
+        </View>
       </CameraView>
 
       {activeMode === "DOKUMEN" && capturedImages.length === 0 && (
@@ -542,7 +668,7 @@ export default function ScanScreen() {
                 {capturedImages.length}
               </ThemedText>
             </View>
-            <TouchableOpacity style={styles.ubahBtn}>
+            <TouchableOpacity style={styles.ubahBtn} onPress={finishScan}>
               <ThemedText style={styles.ubahText}>Ubah</ThemedText>
             </TouchableOpacity>
             <View style={styles.thumbArrow}>
@@ -551,32 +677,39 @@ export default function ScanScreen() {
           </View>
         )}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.modeTabs}
-        >
-          {SCAN_MODES.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              onPress={() => setActiveMode(m.id)}
-              style={styles.modeTab}
-            >
-              {activeMode === m.id && (
-                <View style={styles.activeTabIndicator} />
-              )}
-              <ThemedText
-                style={[
-                  styles.modeText,
-                  activeMode === m.id && styles.activeModeText,
-                ]}
+        {!(isBatch && capturedImages.length > 0) && (
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.modeTabs}
+          >
+            {SCAN_MODES.map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                onPress={() => setActiveMode(m.id)}
+                onLayout={(e) => {
+                  const { x, width } = e.nativeEvent.layout;
+                  setTabLayouts((prev) => ({ ...prev, [m.id]: { x, width } }));
+                }}
+                style={styles.modeTab}
               >
-                {m.name}
-              </ThemedText>
-              {m.dot && <View style={styles.modeDot} />}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                {activeMode === m.id && (
+                  <View style={styles.activeTabIndicator} />
+                )}
+                <ThemedText
+                  style={[
+                    styles.modeText,
+                    activeMode === m.id && styles.activeModeText,
+                  ]}
+                >
+                  {m.name}
+                </ThemedText>
+                {m.dot && <View style={styles.modeDot} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         <View style={styles.mainControls}>
           {capturedImages.length > 0 ? (
@@ -611,7 +744,7 @@ export default function ScanScreen() {
               <ThemedText style={styles.selesaiText}>Selesai</ThemedText>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.controlItem} onPress={() => {}}>
+            <TouchableOpacity style={styles.controlItem} onPress={pickImage}>
               <ImageIcon color="white" size={28} />
               <ThemedText style={styles.controlLabel}>Impor Gambar</ThemedText>
             </TouchableOpacity>

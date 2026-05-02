@@ -1,0 +1,37 @@
+name: 🚀 Auto Update App (EAS)
+
+on:
+  push:
+    branches:
+      - main   # Setiap push ke branch main → otomatis update app
+
+jobs:
+  update:
+    name: Deploy OTA Update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout kode terbaru
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔧 Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 🚀 Kirim update ke HP (OTA)
+        run: |
+          eas update \
+            --branch preview \
+            --message "🤖 Auto update dari commit: ${{ github.event.head_commit.message }}" \
+            --non-interactive

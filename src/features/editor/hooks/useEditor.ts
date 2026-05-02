@@ -13,12 +13,14 @@ export const useEditor = (
   const [doc, setDoc] = useState<any>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [originalUri, setOriginalUri] = useState<string | null>(null);
+  const [imageRatio, setImageRatio] = useState<number>(3 / 4); // Default ratio
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState("Gambar");
   const [activeSubTool, setActiveSubTool] = useState<string | null>(null);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [applyToAll, setApplyToAll] = useState(false);
   const [activeFilter, setActiveFilter] = useState("Original");
+  const [filterIntensity, setFilterIntensity] = useState(100);
   const [isScanningText, setIsScanningText] = useState(false);
   const [extractedText, setExtractedText] = useState("");
   const [showTextEditor, setShowTextEditor] = useState(false);
@@ -50,8 +52,18 @@ export const useEditor = (
         const pageIdx = currentDoc.pages.findIndex((p: any) => p.id === pageId);
         if (pageIdx !== -1) {
           setCurrentPageIndex(pageIdx);
-          setImageUri(currentDoc.pages[pageIdx].imagePath);
-          setOriginalUri(currentDoc.pages[pageIdx].imagePath);
+          const uri = currentDoc.pages[pageIdx].imagePath;
+          setImageUri(uri);
+          setOriginalUri(uri);
+
+          // Hitung rasio gambar
+          RNImage.getSize(
+            uri,
+            (w, h) => {
+              if (h > 0) setImageRatio(w / h);
+            },
+            () => {},
+          );
         }
       }
     } catch (err) {
@@ -81,12 +93,22 @@ export const useEditor = (
     return actions;
   };
 
-  const applyFilter = async (filterName: string) => {
+  const applyFilter = async (
+    filterName: string,
+    intensity: number = filterIntensity,
+  ) => {
     if (!originalUri) return;
     setActiveFilter(filterName);
     setIsProcessing(true);
     try {
-      const actions = getFilterActions(filterName);
+      // Abu-abu dan Balik bisa diproses langsung oleh ImageManipulator
+      let actions: any[] = [];
+      if (filterName === "Abu-abu" || filterName === "H&P") {
+        actions = [{ grayscale: true }];
+      } else if (filterName === "Balik") {
+        actions = [{ flip: ImageManipulator.FlipType.Vertical }];
+      }
+      // Filter lainnya ditangani secara visual oleh ColorMatrix di FilteredImage
       if (actions.length > 0) {
         const result = await ImageManipulator.manipulateAsync(
           originalUri,
@@ -98,7 +120,7 @@ export const useEditor = (
         setImageUri(originalUri);
       }
     } catch {
-      // Error handled
+      // Error handled silently
     } finally {
       setIsProcessing(false);
     }
@@ -115,6 +137,8 @@ export const useEditor = (
       });
       setImageUri(result.uri);
       setOriginalUri(result.uri);
+      // Update rasio gambar setelah rotasi
+      setImageRatio((prevRatio) => 1 / prevRatio);
     } catch (err) {
       console.error(err);
     } finally {
@@ -122,7 +146,7 @@ export const useEditor = (
     }
   };
 
-  const applyFinalCrop = async () => {
+  const applyFinalCrop = async (nPoints?: any) => {
     if (!imageUri) return;
     setIsProcessing(true);
     try {
@@ -137,22 +161,42 @@ export const useEditor = (
         );
       });
       if (imgWidth === 0 || imgHeight === 0) throw new Error();
-      const actions = [
-        {
-          crop: {
-            originX: Math.floor(imgWidth * 0.1),
-            originY: Math.floor(imgHeight * 0.1),
-            width: Math.floor(imgWidth * 0.8),
-            height: Math.floor(imgHeight * 0.8),
-          },
-        },
-      ];
+
+      let cropParams = {
+        originX: Math.floor(imgWidth * 0.1),
+        originY: Math.floor(imgHeight * 0.1),
+        width: Math.floor(imgWidth * 0.8),
+        height: Math.floor(imgHeight * 0.8),
+      };
+
+      if (nPoints && nPoints.tl) {
+        const minX = Math.max(0, Math.min(nPoints.tl.x, nPoints.bl.x));
+        const minY = Math.max(0, Math.min(nPoints.tl.y, nPoints.tr.y));
+        const maxX = Math.min(1, Math.max(nPoints.tr.x, nPoints.br.x));
+        const maxY = Math.min(1, Math.max(nPoints.bl.y, nPoints.br.y));
+
+        const w = maxX - minX;
+        const h = maxY - minY;
+
+        if (w > 0 && h > 0) {
+          cropParams = {
+            originX: Math.floor(minX * imgWidth),
+            originY: Math.floor(minY * imgHeight),
+            width: Math.floor(w * imgWidth),
+            height: Math.floor(h * imgHeight),
+          };
+        }
+      }
+
+      const actions = [{ crop: cropParams }];
       const result = await ImageManipulator.manipulateAsync(imageUri, actions, {
         compress: 0.8,
         format: ImageManipulator.SaveFormat.JPEG,
       });
       setImageUri(result.uri);
       setOriginalUri(result.uri);
+      // Update rasio setelah potong
+      setImageRatio((cropParams.width || 1) / (cropParams.height || 1));
       setActiveSubTool(null);
     } catch {
       Alert.alert("Error", "Gagal memproses pemotongan");
@@ -201,7 +245,12 @@ export const useEditor = (
       if (applyToAll && activeFilter !== "Original") {
         const actions = getFilterActions(activeFilter);
         updatedPages = await Promise.all(
-          doc.pages.map(async (p: any) => {
+          doc.pages.map(async (p: any, idx: number) => {
+            // Pertahankan hasil crop/edit pada halaman yang sedang aktif
+            if (idx === currentPageIndex) {
+              return { ...p, imagePath: imageUri };
+            }
+            // Untuk halaman lainnya, terapkan filter
             if (actions.length > 0) {
               const result = await ImageManipulator.manipulateAsync(
                 p.imagePath,
@@ -247,6 +296,8 @@ export const useEditor = (
     applyToAll,
     setApplyToAll,
     activeFilter,
+    filterIntensity,
+    setFilterIntensity,
     isScanningText,
     extractedText,
     setExtractedText,
@@ -274,5 +325,6 @@ export const useEditor = (
     setImageUri,
     setOriginalUri,
     originalUri,
+    imageRatio,
   };
 };

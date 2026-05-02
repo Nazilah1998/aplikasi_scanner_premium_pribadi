@@ -30,6 +30,9 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
+import { useAppTheme } from "@/src/shared/contexts/ThemeContext";
+import { AppColors } from "@/src/shared/constants/theme";
+import { useRouter } from "expo-router";
 
 const MENU_ITEMS = [
   { id: "akun", icon: User, label: "Akun" },
@@ -43,7 +46,12 @@ const MENU_ITEMS = [
   { id: "scan", icon: Scan, label: "Scan" },
   { id: "docs", icon: FileBox, label: "Manajemen Dokumen" },
   { id: "widget", icon: PlusSquare, label: "Tambahkan Widget" },
-  { id: "settings", icon: Settings, label: "Pengaturan Lainnya" },
+  {
+    id: "settings",
+    icon: Settings,
+    label: "Pengaturan Lainnya",
+    route: "/settings",
+  },
 ];
 
 const SECONDARY_MENU = [
@@ -55,9 +63,20 @@ const SECONDARY_MENU = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { activeColorScheme } = useAppTheme();
+  const isDark = activeColorScheme === "dark";
+
+  const bgColor = isDark ? "#05070a" : AppColors.light.background;
+  const cardBg = isDark ? "#111827" : AppColors.light.surface;
+  const borderColor = isDark
+    ? "rgba(255,255,255,0.03)"
+    : AppColors.light.border;
+  const textColor = isDark ? "#e2e8f0" : AppColors.light.textPrimary;
+  const iconColor = isDark ? "#94a3b8" : AppColors.light.textSecondary;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: bgColor }]}>
       <StatusBar barStyle="light-content" />
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -148,7 +167,9 @@ export default function ProfileScreen() {
 
           {/* Quick Stats Grid */}
           <View style={styles.statsGrid}>
-            <TouchableOpacity style={styles.statBox}>
+            <TouchableOpacity
+              style={[styles.statBox, { backgroundColor: cardBg, borderColor }]}
+            >
               <View
                 style={[
                   styles.statIconContainer,
@@ -160,7 +181,9 @@ export default function ProfileScreen() {
               <ThemedText style={styles.statLabel}>Cloud</ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.statBox}>
+            <TouchableOpacity
+              style={[styles.statBox, { backgroundColor: cardBg, borderColor }]}
+            >
               <View
                 style={[
                   styles.statIconContainer,
@@ -172,7 +195,12 @@ export default function ProfileScreen() {
               <ThemedText style={styles.statLabel}>Tugas</ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.statBox, { flex: 1.2 }]}>
+            <TouchableOpacity
+              style={[
+                styles.statBox,
+                { flex: 1.2, backgroundColor: cardBg, borderColor },
+              ]}
+            >
               <View
                 style={[
                   styles.statIconContainer,
@@ -189,18 +217,31 @@ export default function ProfileScreen() {
           </View>
 
           {/* List Menu Section 1 */}
-          <View style={styles.listContainer}>
+          <View
+            style={[
+              styles.listContainer,
+              { backgroundColor: cardBg, borderColor },
+            ]}
+          >
             {MENU_ITEMS.map((item, idx) => (
               <TouchableOpacity
                 key={item.id}
                 style={[
                   styles.listItem,
                   idx === MENU_ITEMS.length - 1 && { borderBottomWidth: 0 },
+                  { borderBottomColor: borderColor },
                 ]}
+                onPress={() => {
+                  if (item.route) {
+                    router.push(item.route as any);
+                  }
+                }}
               >
                 <View style={styles.listItemLeft}>
-                  <item.icon color="#94a3b8" size={22} />
-                  <ThemedText style={styles.listItemLabel}>
+                  <item.icon color={iconColor} size={22} />
+                  <ThemedText
+                    style={[styles.listItemLabel, { color: textColor }]}
+                  >
                     {item.label}
                   </ThemedText>
                 </View>
@@ -219,18 +260,26 @@ export default function ProfileScreen() {
           </View>
 
           {/* List Menu Section 2 */}
-          <View style={[styles.listContainer, { marginTop: 15 }]}>
+          <View
+            style={[
+              styles.listContainer,
+              { marginTop: 15, backgroundColor: cardBg, borderColor },
+            ]}
+          >
             {SECONDARY_MENU.map((item, idx) => (
               <TouchableOpacity
                 key={item.id}
                 style={[
                   styles.listItem,
                   idx === SECONDARY_MENU.length - 1 && { borderBottomWidth: 0 },
+                  { borderBottomColor: borderColor },
                 ]}
               >
                 <View style={styles.listItemLeft}>
-                  <item.icon color="#94a3b8" size={22} />
-                  <ThemedText style={styles.listItemLabel}>
+                  <item.icon color={iconColor} size={22} />
+                  <ThemedText
+                    style={[styles.listItemLabel, { color: textColor }]}
+                  >
                     {item.label}
                   </ThemedText>
                 </View>
