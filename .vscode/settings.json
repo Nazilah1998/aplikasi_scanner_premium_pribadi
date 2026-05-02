@@ -1,7 +1,33 @@
 {
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "explicit",
-    "source.organizeImports": "explicit",
-    "source.sortMembers": "explicit"
-  }
+  "java.project.importOnFirstTimeStartup": "never",
+  "java.project.importHint": false,
+  "java.autobuild.enabled": false,
+  "java.import.gradle.enabled": false,
+  "java.import.maven.enabled": false,
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.expo/**",
+    "**/android/**",
+    "**/ios/**"
+  ],
+  "java.configuration.checkProjectSettings": false,
+  "java.format.enabled": false,
+  "java.errors.incompleteClasspath.severity": "ignore",
+  "java.project.referencedLibraries": [],
+  "java.project.resourceFilters": ["node_modules", ".expo", "android", "ios"],
+  "java.project.outputPath": "",
+  "java.jdt.ls.lombokSupport.enabled": false,
+  "java.checkProjectSettings": false,
+  "files.watcherExclude": {
+    "**/node_modules/*/**": true,
+    "**/.expo/*/**": true,
+    "**/android/*/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/.expo": true,
+    "**/android": true
+  },
+  "problems.visibility": true
 }
