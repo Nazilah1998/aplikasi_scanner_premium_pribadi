@@ -111,17 +111,18 @@ export default function SettingsScreen() {
             disabled={status === "checking" || status === "downloading"}
           >
             <View style={styles.optionLeft}>
-              <RefreshCw
-                color={isDark ? "#94a3b8" : "#64748b"}
-                size={22}
-              />
+              <RefreshCw color={isDark ? "#94a3b8" : "#64748b"} size={22} />
               <View>
-                <ThemedText style={styles.optionLabel}>Cek Pembaruan</ThemedText>
+                <ThemedText style={styles.optionLabel}>
+                  Cek Pembaruan
+                </ThemedText>
                 {status === "checking" && (
                   <ThemedText style={styles.subLabel}>Mengecek...</ThemedText>
                 )}
                 {status === "idle" && (
-                  <ThemedText style={styles.subLabel}>Versi 1.0.0 (Terbaru)</ThemedText>
+                  <ThemedText style={styles.subLabel}>
+                    Versi 1.0.0 (Terbaru)
+                  </ThemedText>
                 )}
               </View>
             </View>

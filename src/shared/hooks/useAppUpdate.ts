@@ -22,7 +22,7 @@ export const useAppUpdate = () => {
   const checkForUpdate = async (isManual = false) => {
     try {
       setStatus("checking");
-      
+
       // Di mode development, skip pengecekan asli expo
       if (__DEV__ && !isManual) {
         setStatus("idle");
@@ -63,11 +63,11 @@ export const useAppUpdate = () => {
     setUpdateMessage("");
   };
 
-  return { 
-    status, 
-    updateMessage, 
-    checkForUpdate: () => checkForUpdate(true), 
-    downloadAndRestart, 
-    dismiss 
+  return {
+    status,
+    updateMessage,
+    checkForUpdate: () => checkForUpdate(true),
+    downloadAndRestart,
+    dismiss,
   };
 };
