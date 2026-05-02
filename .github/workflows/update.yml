@@ -32,7 +32,7 @@ jobs:
       - name: 🚀 Kirim update ke HP (OTA)
         run: |
           eas update \
-            --branch main \
+            --branch preview \
             --platform android \
             --message "🤖 Auto update dari commit: ${{ github.event.head_commit.message }}" \
             --non-interactive
